@@ -15,6 +15,7 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Routing\Requirement\Requirement;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 class BookController extends AbstractController
 {
@@ -49,9 +50,22 @@ class BookController extends AbstractController
     }
 
     #[Route('/api/books', name: 'app_create_book', methods: ['POST'])]
-    public function createBook(Request $request, EntityManagerInterface $em, SerializerInterface $serializer,  UrlGeneratorInterface $urlGenerator, AuthorRepository $authorRepository ): JsonResponse
+    public function createBook(
+        Request $request,
+        EntityManagerInterface $em,
+        SerializerInterface $serializer,
+        UrlGeneratorInterface $urlGenerator,
+        AuthorRepository $authorRepository,
+        ValidatorInterface $validator
+    ): JsonResponse
     {
         $book = $serializer->deserialize($request->getContent(), Book::class, 'json');
+
+        $errors = $validator->validate($book);
+
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), Response::HTTP_BAD_REQUEST, [], true);
+        }
 
         $content = $request->toArray();
 
@@ -69,12 +83,25 @@ class BookController extends AbstractController
     }
 
     #[Route('/api/books/{id}', name:"app_update_book", methods:['PUT'])]
-    public function updateBook(Request $request, SerializerInterface $serializer, Book $book, EntityManagerInterface $em, AuthorRepository $authorRepository): JsonResponse
+    public function updateBook(
+        Request $request,
+        SerializerInterface $serializer,
+        Book $book,
+        EntityManagerInterface $em,
+        AuthorRepository $authorRepository,
+        ValidatorInterface $validator,
+    ): JsonResponse
     {
         $updatedBook = $serializer->deserialize($request->getContent(),
             Book::class,
             'json',
             [AbstractNormalizer::OBJECT_TO_POPULATE => $book]);
+
+        $errors = $validator->validate($book);
+
+        if ($errors->count() > 0) {
+            return new JsonResponse($serializer->serialize($errors, 'json'), Response::HTTP_BAD_REQUEST, [], true);
+        }
 
         $content = $request->toArray();
 
