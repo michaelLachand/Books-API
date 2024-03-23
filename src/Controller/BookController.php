@@ -17,6 +17,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Contracts\Cache\ItemInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 
 class BookController extends AbstractController
 {
@@ -24,15 +26,20 @@ class BookController extends AbstractController
     public function getAllBooks(
         BookRepository $bookRepository,
         SerializerInterface $serializer,
-        Request $request
+        Request $request,
+        TagAwareCacheInterface $cache,
     ): JsonResponse
     {
         $page = $request->get('page', 1);
         $limit = $request->get('limit', 3);
 
-        $bookList = $bookRepository->findAllWithPagination($page, $limit);
+        $idCache = "getAllBooks-" . $page . "-" . $limit;
 
-        $jsonBookList = $serializer->serialize($bookList, 'json', ['groups' => 'getBooks']);
+        $jsonBookList = $cache->get($idCache, function (ItemInterface $item) use ($bookRepository, $page, $limit, $serializer) {
+            $item->tag("booksCache");
+            $bookList = $bookRepository->findAllWithPagination($page, $limit);
+            return $serializer->serialize($bookList, 'json', ['groups' => 'getBooks']);
+        });
 
         return new JsonResponse($jsonBookList, Response::HTTP_OK, [], true);
     }
@@ -49,10 +56,11 @@ class BookController extends AbstractController
     }
 
     #[Route('/api/books/{id}', name: 'app_delete_book', requirements: ['id' => Requirement::DIGITS], methods: ['DELETE'])]
-    public function deleteBook(Book $book, EntityManagerInterface $em): JsonResponse
+    public function deleteBook(Book $book, EntityManagerInterface $em, TagAwareCacheInterface $cache): JsonResponse
     {
-       $em->remove($book);
-       $em->flush();
+        $cache->invalidateTags(["booksCache"]);
+        $em->remove($book);
+        $em->flush();
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
