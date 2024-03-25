@@ -18,6 +18,7 @@ class BookFixtures extends Fixture implements DependentFixtureInterface
             $book = new Book();
             $book->setTitle($faker->name);
             $book->setCoverText($faker->text);
+            $book->setComment($faker->text);
             $book->setAuthor($this->getReference('author' . $faker->numberBetween(0, 19)));
 
             $manager->persist($book);
